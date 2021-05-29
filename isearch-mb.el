@@ -1,4 +1,4 @@
-;;; isearch-mb.el --- Control Isearch from the minibuffer -*- lexical-binding: t; -*-
+;;; isearch-mb.el --- Control isearch from the minibuffer -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021  Free Software Foundation, Inc.
 
@@ -23,12 +23,12 @@
 
 ;;; Commentary:
 
-;; This package provides an alternative Isearch UI based on the
+;; This package provides an alternative isearch UI based on the
 ;; minibuffer.  This allows editing the search string in arbitrary
-;; ways without any special maneuver; unlike standard Isearch, cursor
-;; motion commands do not end the search.  Moreover, in comparison
-;; with standard Isearch, this package provides simplified visual
-;; feedback in the echo area.
+;; ways without any special maneuver; unlike standard isearch, cursor
+;; motion commands do not end the search.  Moreover, the search status
+;; information in the echo area and some keybindings are slightly
+;; simplified.
 
 ;; To use the package, simply activate `isearch-mb-mode'.
 
@@ -58,10 +58,10 @@
 
 (defvar isearch-mb--after-exit
   '(isearch-query-replace
-   isearch-query-replace-regexp
-   isearch-highlight-regexp
-   isearch-highlight-lines-matching-regexp
-   isearch-abort)
+    isearch-query-replace-regexp
+    isearch-highlight-regexp
+    isearch-highlight-lines-matching-regexp
+    isearch-abort)
   "List of commands to execute after exiting the minibuffer.")
 
 (defvar isearch-mb--no-search
@@ -90,13 +90,13 @@
     (define-key map "\M-sr" #'isearch-toggle-regexp)
     (define-key map "\M-sw" #'isearch-toggle-word)
     map)
-  "Minibuffer keymap used by Isearch-Mb.")
+  "Minibuffer keymap used by isearch-mb.")
 
 (defvar isearch-mb--prompt-overlay nil
   "Overlay for minibuffer prompt updates.")
 
 (defun isearch-mb--after-change (_beg _end _len)
-  "Hook to run from the minibuffer to update the Isearch state."
+  "Hook to run from the minibuffer to update the isearch state."
   (let ((string (minibuffer-contents))
         (inhibit-redisplay t))
     (with-minibuffer-selected-window
@@ -110,19 +110,19 @@
                    (condition-case err
                        (prog1 nil (string-match-p isearch-string ""))
                      (invalid-regexp
-                      (prog1 t (isearch-mb--message (cadr err)))))))
+                      (prog1 t (setq isearch-error (cadr err)))))))
           (isearch-update)
         (goto-char isearch-barrier)
         (setq isearch-adjusted t isearch-success t)
         (isearch-search-and-update)))))
 
 (defun isearch-mb--post-command-hook ()
-  "Hook to make the minibuffer reflect the Isearch state."
+  "Hook to make the minibuffer reflect the isearch state."
   (unless isearch--current-buffer
     (throw 'isearch-mb--continue '(ignore)))
   (let ((inhibit-modification-hooks t))
     ;; We never update `isearch-message'.  If it's not empty, then
-    ;; Isearch changed the search string on its own volition.
+    ;; isearch changed the search string on its own volition.
     (unless (string-empty-p isearch-message)
       (setq isearch-message "")
       (delete-minibuffer-contents)
@@ -158,7 +158,7 @@
 
 (defun isearch-mb--with-buffer (&rest args)
   "Evaluate ARGS in the search buffer.
-Intended as an advice for Isearch commands."
+Intended as an advice for isearch commands."
   (if (minibufferp)
       (let ((enable-recursive-minibuffers t)
             (inhibit-redisplay t))
@@ -167,8 +167,8 @@ Intended as an advice for Isearch commands."
     (apply args)))
 
 (defun isearch-mb--after-exit (&rest args)
-  "Evaluate ARGS after quitting Isearch-Mb.
-Intended as an advice for commands that quit Isearch and use the
+  "Evaluate ARGS after quitting isearch-mb.
+Intended as an advice for commands that quit isearch and use the
 minibuffer."
   (throw 'isearch-mb--continue args))
 
@@ -187,11 +187,15 @@ minibuffer."
                    ;; avoid flicker.  As a side effect, window-start/end in
                    ;; `isearch-lazy-highlight-update' will have incorrect values,
                    ;; so we need to lazy-highlight the whole buffer.
-                   (lazy-highlight-buffer (not (null isearch-lazy-highlight))))
+                   (lazy-highlight-buffer (not (null isearch-lazy-highlight)))
+                   (wstart nil))
            (minibuffer-with-setup-hook
                (lambda ()
                  (add-hook 'after-change-functions #'isearch-mb--after-change nil 'local)
                  (add-hook 'post-command-hook #'isearch-mb--post-command-hook nil 'local)
+                 (add-hook 'minibuffer-exit-hook
+                           (lambda () (setq wstart (window-start (minibuffer-selected-window))))
+                           nil 'local)
                  (setq-local tool-bar-map isearch-tool-bar-map)
                  (setq isearch-mb--prompt-overlay (make-overlay (point-min) (point-min)
                                                                 (current-buffer) t t))
@@ -214,7 +218,9 @@ minibuffer."
                       (delq nil)
                       (delete-dups)
                       (mapcar (if isearch-regexp 'regexp-quote 'identity)))
-                    t))
+                    t)
+                   ;; Undo a possible recenter after quitting the minibuffer.
+                   (set-window-start nil wstart))
                (dolist (fun isearch-mb--after-exit)
                  (advice-remove fun #'isearch-mb--after-exit))
                (dolist (fun isearch-mb--with-buffer)
@@ -223,7 +229,7 @@ minibuffer."
     (quit (if isearch-mode (isearch-cancel) (signal 'quit nil)))))
 
 (defun isearch-mb--setup ()
-  "Arrange to start Isearch-Mb after this command, if applicable."
+  "Arrange to start isearch-mb after this command, if applicable."
   (unless (minibufferp)
     ;; When `with-isearch-suspended' is involved, this hook may run
     ;; more than once, hence the test for `isearch-mode'.
@@ -231,9 +237,9 @@ minibuffer."
 
 ;;;###autoload
 (define-minor-mode isearch-mb-mode
-  "Control Isearch from the minibuffer.
+  "Control isearch from the minibuffer.
 
-During an Isearch-Mb session, the following keys are available:
+During an isearch-mb session, the following keys are available:
 \\{isearch-mb-minibuffer-map}"
   :global t
   (if isearch-mb-mode
