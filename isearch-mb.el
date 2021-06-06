@@ -6,7 +6,7 @@
 ;; URL: https://github.com/astoff/isearch-mb
 ;; Keywords: matching
 ;; Package-Requires: ((emacs "27.1"))
-;; Version: 0.2
+;; Version: 0.3
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -38,9 +38,12 @@
   (require 'cl-lib)
   (require 'subr-x))
 
+(defgroup isearch-mb nil
+  "Control isearch from the minibuffer."
+  :group 'isearch)
+
 (defvar isearch-mb--with-buffer
-  '(isearch-post-command-hook
-    isearch-beginning-of-buffer
+  '(isearch-beginning-of-buffer
     isearch-end-of-buffer
     isearch-occur
     isearch-repeat-backward
@@ -179,6 +182,7 @@ minibuffer."
        (catch 'isearch-mb--continue
          (cl-letf (((cdr isearch-mode-map) nil)
                    ((symbol-function #'isearch-pre-command-hook) #'ignore)
+                   ((symbol-function #'isearch-post-command-hook) #'ignore)
                    ((symbol-function #'isearch--momentary-message) #'isearch-mb--message)
                    ;; Setting `isearch-message-function' currently disables lazy
                    ;; count, so we need this as a workaround.
