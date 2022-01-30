@@ -159,6 +159,18 @@
                             (isearch--describe-regexp-mode
                              isearch-regexp-function)))))))
 
+(defun isearch-mb--add-defaults ()
+  "Add default search strings to future history."
+  (setq minibuffer-default
+        (with-minibuffer-selected-window
+          (thread-last (if (boundp 'isearch-forward-thing-at-point)
+                           isearch-forward-thing-at-point ;; Introduced in Emacs 28
+                         '(region url symbol sexp))
+            (mapcar #'thing-at-point)
+            (delq nil)
+            (delete-dups)
+            (mapcar (if isearch-regexp 'regexp-quote 'identity))))))
+
 (defun isearch-mb--with-buffer (&rest args)
   "Evaluate ARGS in the search buffer.
 Intended as an advice for isearch commands."
@@ -187,6 +199,7 @@ minibuffer."
                    ;; Setting `isearch-message-function' currently disables lazy
                    ;; count, so we need this as a workaround.
                    ((symbol-function #'isearch-message) #'isearch-mb--update-prompt)
+                   (minibuffer-default-add-function #'isearch-mb--add-defaults)
                    ;; We need to set `inhibit-redisplay' at certain points to
                    ;; avoid flicker.  As a side effect, window-start/end in
                    ;; `isearch-lazy-highlight-update' will have incorrect values,
@@ -212,17 +225,8 @@ minibuffer."
                    (dolist (fun isearch-mb--after-exit)
                      (advice-add fun :around #'isearch-mb--after-exit))
                    (read-from-minibuffer
-                    "I-search: "
-                    nil
-                    isearch-mb-minibuffer-map
-                    nil
-                    (if isearch-regexp 'regexp-search-ring 'search-ring)
-                    (thread-last '(region url symbol sexp line) ;; TODO: make customizable
-                      (mapcar #'thing-at-point)
-                      (delq nil)
-                      (delete-dups)
-                      (mapcar (if isearch-regexp 'regexp-quote 'identity)))
-                    t)
+                    "I-search: " nil isearch-mb-minibuffer-map nil
+                    (if isearch-regexp 'regexp-search-ring 'search-ring) nil t)
                    ;; Undo a possible recenter after quitting the minibuffer.
                    (set-window-start nil wstart))
                (dolist (fun isearch-mb--after-exit)
